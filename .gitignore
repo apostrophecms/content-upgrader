@@ -1,0 +1,17 @@
+# Ignore MacOS X metadata forks (fusefs)
+._*
+# Ignore unison sync files
+.unison*
+package-lock.json
+npm-debug.log
+*.DS_Store
+*.npmignore
+.nyc_output
+.vscode
+.out
+coverage
+node_modules
+test/package.json
+test/node_modules
+# vim swp files
+.*.sw*
