@@ -60,11 +60,13 @@ module.exports = {
         type: 'new-name',
         // We've changed to a single string field for the address
         address: `${doc.street} ${doc.city}, ${doc.state}`
-      }
+      };
     }
   }
 }
 ```
+
+> Your function **must** return a doc. It's OK to modify the original doc but you must return the modified doc.
 
 ### Transforming widget types
 
@@ -103,11 +105,14 @@ module.exports = {
         // relationship called _products, which stores them in a
         // productsIds property
         productsIds: doc.pieceIds
-      }
+      };
     }
   }
 }
 ```
+
+> Your function **must** return a widget. It's OK to modify the original widget but you must return the modified widget.
+
 
 #### apostrophe-pieces-widgets: "most recent" and "by tag" views
 
@@ -145,6 +150,8 @@ module.exports = {
   }
 }
 ```
+
+Note that as before, transformation functions **must** return a doc or widget, as appropriate. You can modify the original but you must return it.
 
 > Not all transformations are easiest to achieve during the upgrade. Some might be more easily achieved in A3 after the initial upgrade. Keep in mind that even if a property is not part of the A3 schema, it will remain in the database.
 
