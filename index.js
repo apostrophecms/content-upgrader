@@ -1,3 +1,4 @@
+const { findSourceMap } = require('module');
 const { MongoClient } = require('mongodb');
 
 module.exports = {
@@ -6,6 +7,7 @@ module.exports = {
     self.addUpgradeTask();
   },
   construct(self, options) {
+    self.a2ToA3Ids = {};
     self.options.mapDocs = {
       'apostrophe-user': async (doc) => {
         // For now we do not import users. Determining their proper permissions
@@ -37,87 +39,106 @@ module.exports = {
       self.addTask('upgrade', 'Upgrade content for A3', self.upgradeTask);
     };
     self.upgradeTask = async (apos, argv) => {
-      return self.apos.migrations.eachDoc({}, self.upgradeDoc);
+      await self.upgradePass();
+      await self.rewritePass();
+    },
+    self.upgradePass = async () => {
+      await self.apos.migrations.eachDoc({}, self.upgradeDoc);
+    },
+    self.rewritePass = async () => {
+      // Separate pass because docs cant't know each other's new aposDocIds
+      // until the end of the first pass. We have to do our own iteration
+      // because we're talking to the new database
+      const cursor = self.docs.find({});
+      while (true) {
+        const doc = await cursor.next();
+        if (!doc) {
+          break;
+        }
+        await self.rewriteDocJoinIds(doc);
+      }
     },
     self.upgradeDoc = async doc => {
-      let newDoc = await self.upgradeDocCore(doc);
-      if (!newDoc) {
+      doc = await self.upgradeDocCore(doc);
+      if (!doc) {
         return;
       }
-      if (newDoc.slug.startsWith('/')) {
-        newDoc = await self.upgradePage(newDoc);
-        if (!newDoc) {
+      if (doc.slug.startsWith('/')) {
+        doc = await self.upgradePage(doc);
+        if (!doc) {
           return;
         }
       }
       if (self.options.transformDoc) {
-        newDoc = await self.options.transformDoc(newDoc);
-        if (!newDoc) {
+        doc = await self.options.transformDoc(doc);
+        if (!doc) {
           return;
         }
       }
       const mapping = self.options.mapDocs && self.options.mapDocs[doc.type];
       if (mapping) {
         if ((typeof mapping) === 'function') {
-          newDoc = await mapping(newDoc);
-          if (!newDoc) {
+          doc = await mapping(doc);
+          if (!doc) {
             return;
           }
         } else {
           // Just a type name change
-          newDoc = {
-            ...newDoc,
+          doc = {
+            ...doc,
             type: mapping
           };
         }
       }
       // upgradeDocCore sets this flag when the A2 site does not have workflow
       // but the type will need draft/published support in A3
-      const replicateToPublished = newDoc._replicateToPublished;
-      delete newDoc._replicateToPublished;
-      if (newDoc.slug.startsWith('/')) {
-        console.log(`*** inserting: ${newDoc.slug} ${newDoc._id}`);
+      const replicateToPublished = doc._replicateToPublished;
+      delete doc._replicateToPublished;
+      if (doc.slug.startsWith('/')) {
+        console.log(`*** inserting: ${doc.slug} ${doc._id}`);
       }
-      await self.docs.insertOne(newDoc);
+      self.a2ToA3Ids[doc.a2Id] = doc.aposDocId;
+      await self.docs.insertOne(doc);
       if (replicateToPublished) {
         await self.docs.insertOne({
-          ...newDoc,
-          _id: newDoc._id.replace(':draft', ':published'),
-          aposLocale: newDoc.aposLocale.replace(':draft', ':published'),
+          ...doc,
+          _id: doc._id.replace(':draft', ':published'),
+          aposLocale: doc.aposLocale.replace(':draft', ':published'),
           aposMode: 'published'
         });
       }
     };
     self.upgradeDocCore = async doc => {
-      let newDoc = {
+      doc = {
         ...doc,
         metaType: 'doc'
       };
-      newDoc.archived = newDoc.trash;
-      newDoc = await self.upgradeDocIdentity(newDoc);
-      if (!newDoc) {
+      doc.archived = doc.trash;
+      doc = await self.upgradeDocIdentity(doc);
+      if (!doc) {
         return false;
       }
-      const manager = self.apos.docs.getManager(newDoc.type);
+      const manager = self.apos.docs.getManager(doc.type);
       if (!manager) {
         return false;
       }
       const schema = manager.schema;
-      newDoc = await self.upgradeObject(schema, newDoc);
+      doc = await self.upgradeObject(schema, doc);
       // Spontaneous top level areas might not be accounted for yet
       // (in A3 they must be added to the schema in the code)
-      for (const [ key, val ] of Object.entries(newDoc)) {
+      for (const [ key, val ] of Object.entries(doc)) {
         if (val && (val.type === 'area')) {
-          await self.upgradeFieldTypes.area(newDoc, {
+          await self.upgradeFieldTypes.area(doc, {
             type: 'area',
             name: key
           });
         }
       }
-      return newDoc;
+      return doc;
     };
     self.upgradeDocIdentity = async doc => {
       const workflow = self.apos.modules['apostrophe-workflow'];
+      doc.a2Id = doc._id;
       if (workflow) {
         if (doc.workflowGuid) {
           const locale = doc.workflowLocale.replace('-draft', '');
@@ -139,7 +160,7 @@ module.exports = {
           if (doc.slug.startsWith('/')) {
             console.log(`Reset the _id of ${doc.slug} to ${doc._id}`);
           }
-          doc.aposDocId = doc._id;
+          doc.aposDocId = doc._id.split(':')[0];
           doc.aposLocale = `${self.options.defaultLocale}:draft`;
           doc.aposMode = 'draft';
           if (!doc.trash) {
@@ -228,6 +249,41 @@ module.exports = {
         return doc;
       }
     };
+    self.rewriteDocJoinIds = async doc => {
+      const modified = rewrite(doc);
+      if (modified) {
+        return self.docs.replaceOne({
+          _id: doc._id
+        }, doc);
+      }
+      function rewrite(object) {
+        let modified = false;
+        const patchKeys = {};
+        for (const key of Object.keys(object)) {          
+          if (key === 'a2Id') {
+            continue;
+          }
+          if (self.a2ToA3Ids[key] && (self.a2ToA3Ids[key] !== key)) {
+            patchKeys[key] = self.a2ToA3Ids[key];
+          }
+          if (object[key]) {
+            if ((object[key] != null) && ((typeof object[key]) === 'object')) {
+              modified = modified || rewrite(object[key]);
+            } else if (self.a2ToA3Ids[object[key]] && self.a2ToA3Ids[object[key]] !== object[key]) {
+              object[key] = self.a2ToA3Ids[object[key]];
+              modified = true;
+            }
+          }
+        }
+        // Outside the iterator above so we don't confuse it
+        for (const [ key, val ] of Object.entries(patchKeys)) {
+          object[val] = object[key];
+          delete object[key];
+          modified = true;
+        }
+        return modified;
+      }
+    };    
   }
 };
 
