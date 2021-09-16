@@ -1,0 +1,26 @@
+{
+  "name": "@apostrophecms/content-upgrader",
+  "version": "3.0.0-alpha",
+  "description": "Upgrades Apostrophe 2.x databases to be compatible with Apostrophe 3.x",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apostrophecms/content-upgrader.git"
+  },
+  "keywords": [
+    "apostrophecms",
+    "apostrophe"
+  ],
+  "author": "Apostrophe Technologies",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/apostrophecms/content-upgrader/issues"
+  },
+  "homepage": "https://github.com/apostrophecms/content-upgrader#readme",
+  "dependencies": {
+    "mongodb": "^4.1.2"
+  }
+}

@@ -22,7 +22,20 @@ modules: {
 }
 ```
 
-Then create `lib/modules/@apostrophecms/content-upgrader/index.js`. Here you can optionally address any changes in doc type and widget type names and do deeper transformations as well.
+Then create `lib/modules/@apostrophecms/content-upgrader/index.js`. Here you can optionally address any content transformations and set the default locale, which is important *even if you have no immediate plans to localize your site in other languages.*
+
+### Setting the default locale
+
+In `lib/modules/@apostrophecms/content-upgrader/index.js`, be sure to set the default locale name to match your A3 project. Otherwise your site may appear to have no content after the upgrade.
+
+If no locale configuration at all is done in your A3 project, it will be `en`, so that is the default here as well if you do not specify otherwise.
+
+```javascript
+// In lib/modules/@apostrophecms/content-upgrader/index.js
+module.exports = {
+  defaultLocale: 'fr'
+};
+```
 
 ### Transforming doc types
 
@@ -66,7 +79,7 @@ module.exports = {
 }
 ```
 
-> Your function **must** return a doc. It's OK to modify the original doc but you must return the modified doc.
+> Your function **must** return a doc unless you want the document to be **removed** in the upgrade. It's OK to modify the original doc but you must return the modified doc if you want it to be kept.
 
 ### Transforming widget types
 
@@ -111,8 +124,7 @@ module.exports = {
 }
 ```
 
-> Your function **must** return a widget. It's OK to modify the original widget but you must return the modified widget.
-
+> Your function **must** return a widget if you want it to be kept in the upgrade. It's OK to modify the original widget but you must return the modified widget. Otherwise the widget is **removed** in the upgrade.
 
 #### apostrophe-pieces-widgets: "most recent" and "by tag" views
 
@@ -151,7 +163,7 @@ module.exports = {
 }
 ```
 
-Note that as before, transformation functions **must** return a doc or widget, as appropriate. You can modify the original but you must return it.
+Note that as before, transformation functions **must** return a doc or widget, as appropriate, unless you want it to be **removed** in the upgrade. You can modify the original but you must return it if you wish to keep it.
 
 > Not all transformations are easiest to achieve during the upgrade. Some might be more easily achieved in A3 after the initial upgrade. Keep in mind that even if a property is not part of the A3 schema, it will remain in the database.
 
