@@ -180,7 +180,7 @@ Note that as before, transformation functions **must** return a doc or widget, a
 
 ## Running the upgrade
 
-You'll need a new A3 project to copy the content to. Specify both the new project folder and the MongoDB URI of the new A3 database. If you are running MongoDB locally, which is typical during development, you can specify:
+You'll need a new A3 project to copy the content to. Specify the new project folder and the MongoDB URI of the new A3 database. If you are running MongoDB locally, which is typical during development, you can specify:
 
 ```
 mongodb://localhost:27017/your-new-database-name
@@ -189,14 +189,18 @@ mongodb://localhost:27017/your-new-database-name
 🛑 **Don't use the same name as your existing A2 database.** Your new A3 project should also have a different `shortName` setting in `app.js`, for avoidance of any possible confusion. Also make sure your A3 project is not already running, for instance in another terminal window.
 
 ```
-node app @apostrophecms/content-upgrader:upgrade --a3-project=../your-new-a3-project-folder --a3-db=mongodb://localhost:27017/your-new-database-name
+node app @apostrophecms/content-upgrader:upgrade --a3-db=mongodb://localhost:27017/your-new-database-name
 ```
 
+## What about the media files?
+
+The media files themselves don't need to change in the transition to A3.
+
+So you can manually copy the `public/uploads` folder from the A2 project to the A3 project, or use `rsync`. If you are using uploadfs to store your media in S3 your procedure will vary.
+
+This tool may automatically copy the `public/uploadfs` folder in a future update.
+
 ## Options
-
-### `--a3-project`
-
-**Required.** This must be the local filesystem path of your new A3 project, which must exist.
 
 ### `--a3-db`
 
@@ -205,10 +209,6 @@ node app @apostrophecms/content-upgrader:upgrade --a3-project=../your-new-a3-pro
 ### `--drop`
 
 **Optional.** If at least one Apostrophe doc exists in the new A3 database, the task will exit with an error message unless this option is passed.
-
-### `--skip-uploads`
-
-By default this tool will also copy media from `public/uploads` to the `public/uploads` folder of the new A3 project, using `rsync`. You can skip this step with `--skip-uploads`. Note that **the actual contents of the folder don't typically require changes for A3**, so feel free to copy it by other means, especially if you are using AWS S3 for media storage, etc.
 
 ## Next steps
 
