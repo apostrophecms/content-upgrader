@@ -1,10 +1,21 @@
 # @apostrophecms/content-upgrader
 
-A tool to migrate your content from Apostrophe 2.x to Apostrophe 3.x.
+A tool to migrate your **content** from Apostrophe 2.x to Apostrophe 3.x. That is, it creates a new database in the A3 format, and copies over the uploaded media. This tool does not upgrade your source code. However notes on some of the relevant code changes you'll need are provided below. See also [Coming from Apostrophe 2.x](https://v3.docs.apostrophecms.org/guide/upgrading.html), especially the Breaking Changes section.
 
-This tool installs as a module **inside your existing A2 project.** It will export content to a separate database for use in a new A3 project.
+## Stability
+
+**This is an alpha release.** We have not done our own acceptance testing on the output yet. It may be useful to you in A2 migrating sites. Your bug reports and contributions are appreciated.
+
+## Limitations
+
+* As stated this is a content migration tool, not a code migration tool. You will need to make code changes manually to convert an A2 project.
+* Users and groups are not migrated. This is because the user roles of A3 differ in design from the permissions groups of A2 and we wish to avoid creating any security issues. You should create new accounts on the A3 project or arrive at your own migration strategy.
+* A2 has a built-in `apostrophe-images` "slideshow" widget type, while A3 only has a built-in single-image `@apostrophecms/image` widget type. By default `apostrophe-images` will be upgraded to `@apostrophecms/image`, with only the first image present in each. However you can use the `mapWidgetTypes` option, documented below, to override this mapping during the upgrade.
+* Since A3 does not have a built-in cropping feature yet, there is currently no accommodation for it in A3's `@apostrophecms/image` widget type. However an attempt is made to carry over the cropping data in the format which is expected to work in A3 in the near future.
 
 ## Installation
+
+This tool installs as a module **inside your existing A2 project.** This is necessary to gain access to information such as the schemas of your existing piece and page and widget types.
 
 ```bash
 cd my-existing-a2-project
@@ -43,7 +54,7 @@ In A2, the names of piece type modules themselves and the `name` option configur
 
 Yes, this was confusing. That's why in A3, the `name` option no longer exists, and **the name of the module and the `type` property in the database are always the same.** Also, by convention, module names in A3 are singular.
 
-What does this mean for us when we upgrade the content? It means that most of the time, **we need to change the module name to singular and remove its `name` option for A3, but we don't need to change the `type` in the database.**
+What does this mean for us when we upgrade the content? It means that most of the time, **in our A3 source code we need to change the module name to singular and remove its `name` option, but we don't need to change the `type` in the database,** because the new module's name will likely match it.
 
 However, if you *do* want to remap the `type` in the database, perhaps because you're choosing a different name for your module in A3, you can do it like this:
 
@@ -56,7 +67,7 @@ module.exports = {
 }
 ```
 
-> `old-name` must match the `name` option from the old A2 module, *not* the module name from A2. `new-name` must match the module name in your new A3 project, which will also be used for the `type` property.
+🎩 **`old-name` must match the `name` option from the old A2 module,** not the module name from A2. `new-name` must match the module name in your new A3 project, which will also be used for the `type` property.
 
 #### Providing a transformation function
 
@@ -79,7 +90,7 @@ module.exports = {
 }
 ```
 
-> Your function **must** return a doc unless you want the document to be **removed** in the upgrade. It's OK to modify the original doc but you must return the modified doc if you want it to be kept.
+🎩 **Your function **must** return a doc unless you want the document to be **removed** in the upgrade.** It's OK to modify the original doc but you must return the modified doc if you want it to be kept.
 
 ### Transforming widget types
 
@@ -124,13 +135,13 @@ module.exports = {
 }
 ```
 
-> Your function **must** return a widget if you want it to be kept in the upgrade. It's OK to modify the original widget but you must return the modified widget. Otherwise the widget is **removed** in the upgrade.
+🎩 **Your function **must** return a widget if you want it to be kept in the upgrade.** It's OK to modify the original widget but you must return the modified widget. Otherwise the widget is **removed** in the upgrade.
 
 #### apostrophe-pieces-widgets: "most recent" and "by tag" views
 
 The `apostrophe-pieces-widgets` module also supported "all" and "by tag" displays. Since these were rarely used, they have not been included in A3. If you need to migrate the "all" functionality, we recommend using an [async component](https://v3.docs.apostrophecms.org/guide/async-components.html) to display "all" (typically most recent) pieces in a custom widget. The "by tag" functionality can be addressed in a similar way, however see the note on tags in A3.
 
-> 🎩 Your transformation function can return different widget types based on the value of the original `by` property. You're not limited to mapping a 2.x widget type to just one new widget type.
+🎩 **Your transformation function can return different widget types based on the value of the original `by` property of the pieces-widget.** You're not limited to mapping a 2.x widget type to just one new widget type.
 
 ### Tags in A3
 
@@ -165,7 +176,7 @@ module.exports = {
 
 Note that as before, transformation functions **must** return a doc or widget, as appropriate, unless you want it to be **removed** in the upgrade. You can modify the original but you must return it if you wish to keep it.
 
-> Not all transformations are easiest to achieve during the upgrade. Some might be more easily achieved in A3 after the initial upgrade. Keep in mind that even if a property is not part of the A3 schema, it will remain in the database.
+🎩 **Not all transformations are easiest to achieve during the upgrade. Some might be more easily achieved in A3 after the initial upgrade.** Keep in mind that even if a property is not part of the A3 schema, it will remain in the database.
 
 ## Running the upgrade
 
@@ -175,7 +186,7 @@ You'll need a new A3 project to copy the content to. Specify both the new projec
 mongodb://localhost:27017/your-new-database-name
 ```
 
-> 🛑 Don't use the same name as your existing A2 database. Your new A3 project should also have a different `shortName` setting in `app.js`, for avoidance of any possible confusion. Also make sure your A3 project is not already running, for instance in another terminal window.
+🛑 **Don't use the same name as your existing A2 database.** Your new A3 project should also have a different `shortName` setting in `app.js`, for avoidance of any possible confusion. Also make sure your A3 project is not already running, for instance in another terminal window.
 
 ```
 node app @apostrophecms/content-upgrader:upgrade --a3-project=../your-new-a3-project-folder --a3-db=mongodb://localhost:27017/your-new-database-name
@@ -183,9 +194,21 @@ node app @apostrophecms/content-upgrader:upgrade --a3-project=../your-new-a3-pro
 
 ## Options
 
+### `--a3-project`
+
+**Required.** This must be the local filesystem path of your new A3 project, which must exist.
+
+### `--a3-db`
+
+**Required.** This must be the MongoDB URI of your new A3 project. It will be **cleared and overwritten**. Currently there is no support for merging upgrade content with an existing A3 database.
+
+### `--drop`
+
+**Optional.** If at least one Apostrophe doc exists in the new A3 database, the task will exit with an error message unless this option is passed.
+
 ### `--skip-uploads`
 
-By default this tool will also copy media from `public/uploads` to the `public/uploads` folder of the A3 project, using `rsync`. You can skip this step with `--skip-uploads`. Note that **the actual contents of the folder won't change**, so feel free to copy it by other means, especially if you are using AWS S3 for media storage, etc.
+By default this tool will also copy media from `public/uploads` to the `public/uploads` folder of the new A3 project, using `rsync`. You can skip this step with `--skip-uploads`. Note that **the actual contents of the folder don't typically require changes for A3**, so feel free to copy it by other means, especially if you are using AWS S3 for media storage, etc.
 
 ## Next steps
 
