@@ -10,7 +10,7 @@ module.exports = {
     self.a2ToA3Ids = new Map();
     self.docTypesFound = new Set();
     self.widgetTypesFound = new Set();
-    self.options.mapDocs = {
+    self.options.mapDocTypes = {
       'apostrophe-user': async (doc) => {
         // For now we do not import users. Determining their proper permissions
         // equivalent in A3 is very subjective and they are easy to add back manually
@@ -24,10 +24,10 @@ module.exports = {
       'apostrophe-image': '@apostrophecms/image',
       'apostrophe-file': '@apostrophecms/file',
       'trash': '@apostrophecms/archive-page',
-      ...self.options.mapDocs
+      ...self.options.mapDocTypes
     };
-    self.options.mapWidgets = {
-      ...self.options.mapWidgets,
+    self.options.mapWidgetTypes = {
+      ...self.options.mapWidgetTypes,
       'apostrophe-rich-text': '@apostrophecms/rich-text',
       'apostrophe-images': async (widget) => ({
         ...widget,
@@ -118,7 +118,7 @@ module.exports = {
           return;
         }
       }
-      const mapping = self.options.mapDocs && self.options.mapDocs[doc.type];
+      const mapping = self.options.mapDocTypes && self.options.mapDocTypes[doc.type];
       if (mapping) {
         if ((typeof mapping) === 'function') {
           doc = await mapping(doc);
@@ -247,7 +247,7 @@ module.exports = {
           return;
         }
       }
-      const mapping = self.options.mapWidgets && self.options.mapWidgets[widget.type];
+      const mapping = self.options.mapWidgetTypes && self.options.mapWidgetTypes[widget.type];
       if (mapping) {
         if ((typeof mapping) === 'string') {
           return {
