@@ -35,16 +35,18 @@ modules: {
 
 Then create `lib/modules/@apostrophecms/content-upgrader/index.js`. Here you can optionally address any content transformations and set the default locale, which is important *even if you have no immediate plans to localize your site in other languages.*
 
-### Setting the default locale
+### Mapping locales
 
-In `lib/modules/@apostrophecms/content-upgrader/index.js`, be sure to set the default locale name to match your A3 project. Otherwise your site may appear to have no content after the upgrade.
+In A3, "workflow" is always present, and the default locale is `en`. In A2, the default locale of the workflow module is `default` if no other configuration is done.
 
-If no locale configuration at all is done in your A3 project, it will be `en`, so that is the default here as well if you do not specify otherwise.
+By default, this module's `mapLocale` option will do the right thing to ensure that typical A2 content is reachable after the migration to A3, but you can adjust this option if needed. here is the default setting:
 
 ```javascript
 // In lib/modules/@apostrophecms/content-upgrader/index.js
 module.exports = {
-  defaultLocale: 'fr'
+  mapLocales: {
+    default: 'en'
+  }
 };
 ```
 
