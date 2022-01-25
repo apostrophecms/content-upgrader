@@ -2,7 +2,9 @@ const { findSourceMap } = require('module');
 const { MongoClient } = require('mongodb');
 
 module.exports = {
-  defaultLocale: 'en',
+  mapLocales: {
+    'default': 'en'
+  },
   async afterConstruct(self) {
     self.addUpgradeTask();
   },
@@ -164,6 +166,12 @@ module.exports = {
       if (!manager) {
         return false;
       }
+      if (manager.schema.find(field => field.name === 'published')) {
+        // Not quite the same thing, but a useful approximation
+        doc.visibility = doc.published ? 'public' : 'loginRequired'
+      } else {
+        doc.visibility = 'public';
+      }
       const schema = manager.schema;
       doc = await self.upgradeObject(schema, doc, {
         scopedArrayBase: `doc.${doc.type}`
@@ -185,7 +193,8 @@ module.exports = {
       doc.a2Id = doc._id;
       if (workflow) {
         if (doc.workflowGuid) {
-          const locale = doc.workflowLocale.replace('-draft', '');
+          let locale = doc.workflowLocale.replace('-draft', '');
+          locale = self.options.mapLocales[locale] || locale;
           const mode = doc.workflowLocale.endsWith('-draft') ? 'draft' : 'published';
           if (doc.archived && (mode === 'published')) {
             return false;
@@ -200,9 +209,10 @@ module.exports = {
         // would naturally be exempt without the workflow module to tell us
         const exempt = [ 'apostrophe-user', 'apostrophe-group', 'apostrophe-redirect' ];
         if (!exempt.includes(doc.type)) {
-          doc._id = `${doc._id}:${self.options.defaultLocale}:draft`;
+          const defaultLocale = self.options.mapLocales.default || 'en';
+          doc._id = `${doc._id}:${defaultLocale}:draft`;
           doc.aposDocId = doc._id.split(':')[0];
-          doc.aposLocale = `${self.options.defaultLocale}:draft`;
+          doc.aposLocale = `${defaultLocale}:draft`;
           doc.aposMode = 'draft';
           if (!doc.trash) {
             // We won't find a corresponding published doc in the db but we
@@ -218,9 +228,11 @@ module.exports = {
       if (!workflow) {
         return doc;
       }
-      const prefix = workflow.prefixes[workflow.liveify(doc.workflowLocale)];
-      if (doc.slug.startsWith(prefix)) {
-        doc.slug = doc.slug.substring(prefix.length);
+      if (workflow.prefixes) {
+        const prefix = workflow.prefixes[workflow.liveify(doc.workflowLocale)];
+        if (prefix && doc.slug.startsWith(prefix)) {
+          doc.slug = doc.slug.substring(prefix.length);
+        }
       }
       return doc;
     };
@@ -299,6 +311,7 @@ module.exports = {
         if (doc[field.name]) {
           const area = doc[field.name];
           area.metaType = 'area';
+          area._id = self.apos.utils.generateId();
           const newItems = [];
           for (const widget of (area.items || [])) {
             const newWidget = await self.upgradeWidget(widget);
