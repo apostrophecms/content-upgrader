@@ -53,7 +53,6 @@ module.exports = {
       await self.client.connect();
       self.docs = self.client.db().collection('aposDocs');
       self.attachments = self.client.db().collection('aposAttachments');
-      self.usersSafe = self.client.db().collection('aposUsersSafe');
       const count = await self.docs.countDocuments({});
       if (count) {
         if (!self.apos.argv.drop) {
@@ -68,7 +67,6 @@ module.exports = {
       await self.connectToNewDb();
       await self.upgradeDocsPass();
       await self.rewriteDocsJoinIdsPass();
-      await self.upgradeUsersSafe();
       await self.upgradeAttachments();
       await self.report();
     };
@@ -95,12 +93,6 @@ module.exports = {
         attachment.archivedDocIds = attachment.trashDocIds;
         delete attachment.trashDocIds;
         await self.attachments.insertOne(attachment);
-      });
-    };
-    self.upgradeUsersSafe = async () => {
-      await self.usersSafe.deleteMany({});
-      await self.apos.migrations.each(self.apos.users.safe, {}, 5, async userSafe => {
-        await self.usersSafe.insertOne(userSafe);
       });
     };
     self.upgradeDoc = async doc => {
