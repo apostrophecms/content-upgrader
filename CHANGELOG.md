@@ -1,6 +1,6 @@
 # Changelog
 
-## UNRELEASED
+## 3.0.0-beta
 
 - Replaced `defaultLocale` option with `mapLocale`, which defaults to mapping `default` to `en`, as that's the right thing to do for projects with or without workflow in most cases, and allows for a broader remapping if needed. Clarified documentation on how this works and implemented it for the case where workflow is enabled for the first time.
 - The `visibility` property is now set, as required in A3. If `published` was `true` it is set to `public`, otherwise to `loginRequired`. While the two features are not identical this does a good job of avoiding premature public access to migrated content.
