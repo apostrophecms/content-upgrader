@@ -9,6 +9,7 @@ module.exports = {
     self.addUpgradeTask();
   },
   construct(self, options) {
+    self.a2ToA3Paths = new Map();
     self.a2ToA3Ids = new Map();
     self.docTypesFound = new Set();
     self.widgetTypesFound = new Set();
@@ -25,7 +26,12 @@ module.exports = {
       'apostrophe-global': '@apostrophecms/global',
       'apostrophe-image': '@apostrophecms/image',
       'apostrophe-file': '@apostrophecms/file',
-      'trash': '@apostrophecms/archive-page',
+      async trash (doc) {
+        doc.type = '@apostrophecms/archive-page';
+        doc.parkedId = 'archive';
+        doc.slug = '/archive';
+        return doc;
+      },
       ...self.options.mapDocTypes
     };
     self.options.mapWidgetTypes = {
@@ -72,7 +78,16 @@ module.exports = {
     };
     self.upgradeDocsPass = async () => {
       await self.docs.deleteMany({});
-      await self.apos.migrations.eachDoc({}, self.upgradeDoc);
+      const cursor = self.apos.docs.db.find({}).sort({
+        level: 1
+      });
+      while (true) {
+        const doc = await cursor.next();
+        if (!doc) {
+          break;
+        }
+        await self.upgradeDoc(doc);
+      }
     };
     self.rewriteDocsJoinIdsPass = async () => {
       // Second pass because docs cant't know each other's new aposDocIds
@@ -188,7 +203,7 @@ module.exports = {
           let locale = doc.workflowLocale.replace('-draft', '');
           locale = self.options.mapLocales[locale] || locale;
           const mode = doc.workflowLocale.endsWith('-draft') ? 'draft' : 'published';
-          if (doc.archived && (mode === 'published')) {
+          if (doc.archived && (mode === 'published') && (doc.parkedId !== 'trash')) {
             return false;
           }
           doc._id = `${doc.workflowGuid}:${locale}:${mode}`;
@@ -216,6 +231,14 @@ module.exports = {
       return doc;
     };
     self.upgradePage = async doc => {
+      const a2Path = doc.path;
+      if (doc.path !== '/') {
+        const a2ParentPath = a2Path.replace(/\/[^/]+$/, '') || '/';
+        doc.path = `${self.a2ToA3Paths.get(a2ParentPath)}/${doc.aposDocId}`;
+      } else {
+        doc.path = doc.aposDocId;
+      }
+      self.a2ToA3Paths.set(a2Path, doc.path);
       const workflow = self.apos.modules['apostrophe-workflow'];
       if (!workflow) {
         return doc;
@@ -330,12 +353,15 @@ module.exports = {
           if (key === 'a2Id') {
             continue;
           }
-          if (self.a2ToA3Ids.has(key) && (self.a2ToA3Ids.get(key) !== key)) {
-            patchKeys[key] = self.a2ToA3Ids.get(key);
+          if (!Array.isArray(object)) {
+            if (self.a2ToA3Ids.has(key) && (self.a2ToA3Ids.get(key) !== key)) {
+              patchKeys[key] = self.a2ToA3Ids.get(key);
+            }
           }
           if (object[key]) {
             if ((object[key] != null) && ((typeof object[key]) === 'object')) {
-              modified = modified || rewrite(object[key]);
+              let passDebug = false;
+              modified = rewrite(object[key], passDebug) || modified;
             } else if (self.a2ToA3Ids.has(object[key]) && self.a2ToA3Ids.get(object[key]) !== object[key]) {
               object[key] = self.a2ToA3Ids.get(object[key]);
               modified = true;

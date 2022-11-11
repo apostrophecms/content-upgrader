@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.0-beta.2 (2022-11-10)
+
+- Correctly update the `path` of each page to the A3 pattern.
+- Handle the main "trash" page correctly.
+- Fixed a bug that broke the recursive updating of join/relationship ids.
+
 ## 3.0.0-beta (2022-02-04)
 
 - Replaced `defaultLocale` option with `mapLocale`, which defaults to mapping `default` to `en`, as that's the right thing to do for projects with or without workflow in most cases, and allows for a broader remapping if needed. Clarified documentation on how this works and implemented it for the case where workflow is enabled for the first time.
