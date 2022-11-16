@@ -35,7 +35,6 @@ module.exports = {
       ...self.options.mapDocTypes
     };
     self.options.mapWidgetTypes = {
-      ...self.options.mapWidgetTypes,
       'apostrophe-rich-text': '@apostrophecms/rich-text',
       'apostrophe-images': async (widget) => ({
         ...widget,
@@ -44,7 +43,8 @@ module.exports = {
         imageIds: (widget.pieceIds || []).slice(0, 1)
       }),
       'apostrophe-video': '@apostrophecms/video',
-      'apostrophe-html': '@apostrophecms/html'
+      'apostrophe-html': '@apostrophecms/html',
+      ...self.options.mapWidgetTypes
     };
     self.connectToNewDb = async () => {
       const uri = self.apos.argv['a3-db'];
@@ -187,10 +187,13 @@ module.exports = {
       // (in A3 they must be added to the schema in the code)
       for (const [ key, val ] of Object.entries(doc)) {
         if (val && (val.type === 'area')) {
-          await self.upgradeFieldTypes.area(doc, {
-            type: 'area',
-            name: key
-          }, {});
+          // Make sure we didn't process it already due to inclusion in the schema
+          if (!val.metaType) {
+            await self.upgradeFieldTypes.area(doc, {
+              type: 'area',
+              name: key
+            }, {});
+          }
         }
       }
       return doc;

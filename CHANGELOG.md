@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.0.0-beta.3 (2022-11-16)
+
+- Fixed a significant bug preventing proper import of areas when the content has been transformed.
+- Allow the `mapWidgetTypes` option to override the standard transformers provided for certain widget types.
+
 ## 3.0.0-beta.2 (2022-11-10)
 
 - Correctly update the `path` of each page to the A3 pattern.
