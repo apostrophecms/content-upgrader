@@ -201,6 +201,13 @@ module.exports = {
     self.upgradeDocIdentity = async doc => {
       const workflow = self.apos.modules['apostrophe-workflow'];
       doc.a2Id = doc._id;
+
+      // TODO: check if multisite?
+      if (doc.type === 'site') {
+        doc.aposDocId = workflow ? doc.workflowGuid : doc._id;
+        return doc;
+      }
+
       if (workflow) {
         if (doc.workflowGuid) {
           let locale = doc.workflowLocale.replace('-draft', '');
