@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.0-beta.5 (2022-11-22)
+
+- Migrate existing locales in site pieces.
+
+## 3.0.0-beta.4 (2022-11-17)
+
+- Do not localize site pieces.
+
 ## 3.0.0-beta.3 (2022-11-16)
 
 - Fixed a significant bug preventing proper import of areas when the content has been transformed.
