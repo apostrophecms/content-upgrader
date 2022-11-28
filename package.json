@@ -1,6 +1,6 @@
 {
   "name": "@apostrophecms/content-upgrader",
-  "version": "3.0.0-beta.3",
+  "version": "3.0.0-beta.6",
   "description": "Upgrades Apostrophe 2.x databases to be compatible with Apostrophe 3.x",
   "main": "index.js",
   "scripts": {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.0-beta.6 (2022-11-28)
+
+- Revert `beta.4` and `beta.5` version.
+
 ## 3.0.0-beta.5 (2022-11-22)
 
 - Migrate existing locales in site pieces.
