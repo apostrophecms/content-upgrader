@@ -169,6 +169,9 @@ module.exports = {
       if (!doc) {
         return false;
       }
+      if (self.apos.options.multisite && doc.type === 'site') {
+        doc = await self.upgradeSiteLocales(doc);
+      }
       const manager = self.apos.docs.getManager(doc.type);
       if (!manager) {
         return false;
@@ -201,6 +204,12 @@ module.exports = {
     self.upgradeDocIdentity = async doc => {
       const workflow = self.apos.modules['apostrophe-workflow'];
       doc.a2Id = doc._id;
+
+      if (self.apos.options.multisite && doc.type === 'site') {
+        doc.aposDocId = workflow ? doc.workflowGuid : doc._id;
+        return doc;
+      }
+
       if (workflow) {
         if (doc.workflowGuid) {
           let locale = doc.workflowLocale.replace('-draft', '');
@@ -233,6 +242,53 @@ module.exports = {
       }
       return doc;
     };
+    self.upgradeSiteLocales = async doc => {
+      const hasLocales = Array.isArray(doc.locales);
+      if (!hasLocales) {
+        return doc;
+      }
+
+      const canLocalesBeMapped = doc.locales.every(({ name, label }) => {
+        return typeof name === 'string' && typeof label === 'string' && name.length && label.length;
+      });
+      if (!canLocalesBeMapped) {
+        return doc;
+      }
+
+      const defaultLocale = self.options.mapLocales.default || 'en';
+      const defaultLocaleItem = {
+        name: defaultLocale,
+        label: defaultLocale,
+        prefix: '',
+        separateHost: false,
+        separateProductionHostname: '',
+        private: false
+      };
+
+      const mappedLocaleItems = doc.locales.map(({ name, label }) => {
+        const mappedName = self.options.mapLocales[name];
+
+        // If provided, use mapped name in the name and the prefix:
+        return {
+          name: mappedName || name,
+          label: mappedName ? `${label} (mapped to ${mappedName})` : label,
+          prefix: `/${mappedName || name}`,
+          separateHost: false,
+          separateProductionHostname: '',
+          private: false
+        };
+      });
+
+      self.localesFound = self.localesFound || {};
+      self.localesFound[`${doc._id} (${doc.title})`] = doc.locales.map(({ name }) => {
+        const mappedName = self.options.mapLocales[name];
+        return mappedName ? `${name} ==> ${mappedName}` : name;
+      });
+
+      doc.locales = [ defaultLocaleItem, ...mappedLocaleItems ];
+
+      return doc;
+    };
     self.upgradePage = async doc => {
       const a2Path = doc.path;
       if (doc.path !== '/') {
@@ -261,7 +317,7 @@ module.exports = {
         }
       }
       return object;
-    },
+    };
     self.upgradeWidget = async widget => {
       widget.metaType = 'widget';
       const manager = self.apos.areas.getWidgetManager(widget.type);
@@ -292,7 +348,7 @@ module.exports = {
         }
       }
       return widget;
-    },
+    };
     self.upgradeFieldTypes = {
       async joinByOne(doc, field, options) {
         doc[`${field.name.replace(/^_/, '')}Ids`] = doc[field.idField] ? [ doc[field.idField] ] : [];
@@ -395,6 +451,13 @@ module.exports = {
     };
     self.report = () => {
       console.log('\nComplete!\n');
+      if (self.localesFound) {
+        console.log('Locales found and mapped for following site piece(s):\n');
+        Object.entries(self.localesFound).forEach(([ site, locales ]) => {
+          locales.length && console.log(site, `\n  - ${locales.join('\n  - ')}`);
+        });
+        console.log('\n');
+      }
       console.log('Doc types inserted:\n');
       console.log([...self.docTypesFound].sort().join('\n'));
       console.log('\nWidget types inserted:\n');
