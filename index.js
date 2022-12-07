@@ -169,7 +169,7 @@ module.exports = {
       if (!doc) {
         return false;
       }
-      if (doc.type === 'site') {
+      if (self.apos.options.multisite && doc.type === 'site') {
         doc = await self.upgradeSiteLocales(doc);
       }
       const manager = self.apos.docs.getManager(doc.type);
@@ -205,8 +205,7 @@ module.exports = {
       const workflow = self.apos.modules['apostrophe-workflow'];
       doc.a2Id = doc._id;
 
-      // TODO: check if multisite?
-      if (doc.type === 'site') {
+      if (self.apos.options.multisite && doc.type === 'site') {
         doc.aposDocId = workflow ? doc.workflowGuid : doc._id;
         return doc;
       }
