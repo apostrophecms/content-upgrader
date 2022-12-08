@@ -1,6 +1,6 @@
 # @apostrophecms/content-upgrader
 
-A tool to migrate your **content** from Apostrophe 2.x to Apostrophe 3.x. That is, it creates a new database in the A3 format, and copies over the uploaded media. This tool does not upgrade your source code. However notes on some of the relevant code changes you'll need are provided below. See also [Coming from Apostrophe 2.x](https://v3.docs.apostrophecms.org/guide/upgrading.html), especially the Breaking Changes section.
+A tool to migrate your **content** from Apostrophe 2.x to Apostrophe 3.x. That is, it creates a new database in the A3 format, and copies over the uploaded media. This tool does not upgrade your source code. However notes on some of the relevant code changes you'll need are provided below. See also [Coming from Apostrophe 2.x](https://v3.docs.apostrophecms.org/guide/migration/upgrading.html), especially the Breaking Changes section.
 
 ## Stability
 
