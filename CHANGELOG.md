@@ -3,6 +3,7 @@
 ## 3.0.0-beta.6 (2022-12-12)
 
 - Safer migration of site pieces, in case that piece type name is used for something else in a non-multisite project.
+- Fixed the link to the document section for migration from Apostrophe 2 in the README.md.
 
 ## 3.0.0-beta.5 (2022-11-22)
 
