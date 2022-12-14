@@ -406,6 +406,26 @@ module.exports = {
         }, doc);
       }
       function rewrite(object) {
+        if (object.type === '@apostrophecms/rich-text') {
+          // Handle rich text permalinks
+          object.permalinkIds = [];
+          object.content = (object.content || '').replace(/"#apostrophe-permalink-[^"?]*?\?/g, (match) => {
+            const matches = match.match(/apostrophe-permalink-(.*)\?/);
+            if (matches) {
+              const id = self.a2ToA3Ids.get(matches[1]);
+              if (id) {
+                object.permalinkIds.push(id);
+                console.log(`rewrote permalink now points to ${id}`);
+                return `"#apostrophe-permalink-${id}?`;
+              } else {
+                // No match, leave it alone
+                return match;
+              }
+            }
+          });
+          return;
+        }
+        // Handle other references to doc ids anywhere we find them
         let modified = false;
         const patchKeys = {};
         for (const key of Object.keys(object)) {          
