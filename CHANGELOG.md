@@ -1,5 +1,9 @@
 # Changelog
 
+## UNRELEASED
+
+- Do not create the published version of a draft doc that has `trash: true`.
+
 ## 3.0.0-beta.7 (2022-12-14)
 
 - Support for migrating rich text permalinks.
