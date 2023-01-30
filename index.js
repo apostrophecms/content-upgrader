@@ -11,7 +11,6 @@ module.exports = {
   construct(self, options) {
     self.a2ToA3Paths = new Map();
     self.a2ToA3Ids = new Map();
-    self.archivedDrafts = new Set();
     self.docTypesFound = new Set();
     self.widgetTypesFound = new Set();
     self.options.mapDocTypes = {
@@ -74,6 +73,7 @@ module.exports = {
       await self.connectToNewDb();
       await self.upgradeDocsPass();
       await self.rewriteDocsJoinIdsPass();
+      await self.removeSuperfluousDocs();
       await self.upgradeAttachments();
       await self.report();
     };
@@ -101,6 +101,27 @@ module.exports = {
           break;
         }
         await self.rewriteDocJoinIds(doc);
+      }
+    };
+    self.removeSuperfluousDocs = async () => {
+      const cursor = self.docs.find({});
+
+      while (true) {
+        const doc = await cursor.next();
+
+        if (!doc) {
+          break;
+        }
+        if (doc.aposMode !== 'published') {
+          continue;
+        }
+
+        const [ draft ] = await self.docs.find({ _id: doc._id.replace('published', 'draft') }).toArray();
+
+        if (draft.archived) {
+          // Remove the published version of draft documents that are archived:
+          await self.docs.deleteMany({ _id: doc._id });
+        }
       }
     };
     self.upgradeAttachments = async () => {
@@ -219,20 +240,10 @@ module.exports = {
           if (doc.archived && (mode === 'published') && (doc.parkedId !== 'trash')) {
             return false;
           }
-
-          // We don't want the published doc if its draft version is archived
-          if (mode === 'published' && self.archivedDrafts.has(doc.workflowGuid)) {
-            return false;
-          }
-
           doc._id = `${doc.workflowGuid}:${locale}:${mode}`;
           doc.aposDocId = doc.workflowGuid;
           doc.aposLocale = `${locale}:${mode}`;
           doc.aposMode = mode;
-
-          if (doc.archived && mode === 'draft') {
-            self.archivedDrafts.add(doc.workflowGuid);
-          }
         }
       } else {
         // A3 always has draft/published at a minimum, we have to figure out what types

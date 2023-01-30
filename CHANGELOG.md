@@ -2,7 +2,7 @@
 
 ## UNRELEASED
 
-- Do not create the published version of a draft doc that has `trash: true`.
+- Remove the published version of draft documents that are archived.
 
 ## 3.0.0-beta.7 (2022-12-14)
 
