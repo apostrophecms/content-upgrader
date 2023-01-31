@@ -73,6 +73,7 @@ module.exports = {
       await self.connectToNewDb();
       await self.upgradeDocsPass();
       await self.rewriteDocsJoinIdsPass();
+      await self.removeSuperfluousDocs();
       await self.upgradeAttachments();
       await self.report();
     };
@@ -100,6 +101,27 @@ module.exports = {
           break;
         }
         await self.rewriteDocJoinIds(doc);
+      }
+    };
+    self.removeSuperfluousDocs = async () => {
+      const cursor = self.docs.find({});
+
+      while (true) {
+        const doc = await cursor.next();
+
+        if (!doc) {
+          break;
+        }
+        if (doc.aposMode !== 'published') {
+          continue;
+        }
+
+        const [ draft ] = await self.docs.find({ _id: doc._id.replace('published', 'draft') }).toArray();
+
+        if (draft.archived) {
+          // Remove the published version of draft documents that are archived:
+          await self.docs.deleteMany({ _id: doc._id });
+        }
       }
     };
     self.upgradeAttachments = async () => {

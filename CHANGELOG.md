@@ -1,5 +1,9 @@
 # Changelog
 
+## UNRELEASED
+
+- Remove the published version of draft documents that are archived.
+
 ## 3.0.0-beta.7 (2022-12-14)
 
 - Support for migrating rich text permalinks.
