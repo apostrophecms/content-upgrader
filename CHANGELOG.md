@@ -1,8 +1,8 @@
 # Changelog
 
-## UNRELEASED
+## 3.0.0-beta.8 (2023-02-01)
 
-- Remove the published version of draft documents that are archived.
+- Remove the published version of draft documents that are archived (in A3, an archived document exists only as a draft).
 
 ## 3.0.0-beta.7 (2022-12-14)
 
