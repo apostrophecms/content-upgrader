@@ -118,8 +118,10 @@ module.exports = {
 
         const [ draft ] = await self.docs.find({ _id: doc._id.replace('published', 'draft') }).toArray();
 
-        if (draft.archived) {
-          // Remove the published version of draft documents that are archived:
+        if (draft.archived && (draft.parkedId !== 'archive')) {
+          // Remove the published version of draft documents that are archived,
+          // except the root archive page which by convention exists in the
+          // published locale
           await self.docs.deleteMany({ _id: doc._id });
         }
       }
