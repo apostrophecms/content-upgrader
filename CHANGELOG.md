@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.0-beta.10 (2023-02-03)
+
+- No code changes. Needed to apply the `latest` tag properly in npm.
+
 ## 3.0.0-beta.9 (2023-02-02)
 
 - Hotfix: do not delete the published mode of the /archive page when exporting, it is a special exception to the rule that archived documents have no published mode
