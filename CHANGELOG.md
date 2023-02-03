@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.0-beta.9 (2023-02-02)
+
+- Hotfix: do not delete the published mode of the /archive page when exporting, it is a special exception to the rule that archived documents have no published mode
+
 ## 3.0.0-beta.8 (2023-02-01)
 
 - Remove the published version of draft documents that are archived (in A3, an archived document exists only as a draft).
