@@ -1,8 +1,9 @@
 # Changelog
 
-## 3.0.0 (2023-03-16)
+## 1.0.0 (2023-03-16)
 
 - Declared stable. No code changes.
+- Decision made to start official releases with `1.0.0` for consistency.
 
 ## 3.0.0-beta.10 (2023-02-03)
 
