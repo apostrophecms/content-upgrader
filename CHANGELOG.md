@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.0.0 (2023-03-16)
+
+- Declared stable. No code changes.
+
 ## 3.0.0-beta.10 (2023-02-03)
 
 - No code changes. Needed to apply the `latest` tag properly in npm.
