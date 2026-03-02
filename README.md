@@ -2,7 +2,7 @@
 
 A tool to migrate your **content** from Apostrophe 2.x to Apostrophe 4.x. That is, it creates a new database in the A3/A4 format, and copies over the uploaded media. This tool does not upgrade your source code, however a Claude Skill is provided for that (see "migrating your code," below below).
 
-See also [Coming from Apostrophe 2.x](https://apostrophecms.org/docs/guide/migration/upgrading.html), especially the Breaking Changes section.
+See also [Coming from Apostrophe 2.x](https://apostrophecms.com/docs/guide/migration/upgrading.html), especially the Breaking Changes section.
 
 ## Limitations
 
@@ -24,7 +24,7 @@ Agent skills are also supported by other AI coding tools. Install the skill acco
 
 ### Manual code migration tips
 
-Of course manual upgrades are also supported. See [Coming from Apostrophe 2.x](https://apostrophecms.org/docs/guide/migration/upgrading.html) as well as the [recommendations in the agent skill,](https://github.com/apostrophecms/content-upgrader/blob/main/skills/migrate-a2-to-a4/SKILL.md) which are big time-savers for manual development as well.
+Of course manual upgrades are also supported. See [Coming from Apostrophe 2.x](https://apostrophecms.com/docs/guide/migration/upgrading.html) as well as the [recommendations in the agent skill,](https://github.com/apostrophecms/content-upgrader/blob/main/skills/migrate-a2-to-a4/SKILL.md) which are big time-savers for manual development as well.
 
 ## Installation
 
@@ -154,7 +154,7 @@ module.exports = {
 
 #### apostrophe-pieces-widgets: "most recent" and "by tag" views
 
-The `apostrophe-pieces-widgets` module also supported "all" and "by tag" displays. Since these were rarely used, they have not been included in A4. If you need to migrate the "all" functionality, we recommend using an [async component](https://v3.docs.apostrophecms.org/guide/async-components.html) to display "all" (typically most recent) pieces in a custom widget. The "by tag" functionality can be addressed in a similar way, however see the note on tags in A4.
+The `apostrophe-pieces-widgets` module also supported "all" and "by tag" displays. Since these were rarely used, they have not been included in A4. If you need to migrate the "all" functionality, we recommend using an [async component](https://apostrophecms.com/docs/guide/async-components.html) to display "all" (typically most recent) pieces in a custom widget. The "by tag" functionality can be addressed in a similar way, however see the note on tags in A4.
 
 🎩 **Your transformation function can return different widget types based on the value of the original `by` property of the pieces-widget.** You're not limited to mapping a 2.x widget type to just one new widget type.
 
