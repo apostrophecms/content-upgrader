@@ -1,6 +1,6 @@
 # @apostrophecms/content-upgrader
 
-A tool to migrate your **content** from Apostrophe 2.x to Apostrophe 4.x. That is, it creates a new database in the A3/A4 format, and copies over the uploaded media. This tool does not upgrade your source code, however a Claude Skill is provided for that (see "migrating your code," below below).
+A tool to migrate your **content** from Apostrophe 2.x to Apostrophe 4.x. That is, it creates a new database in the A3/A4 format, and copies over the uploaded media. This tool does not upgrade your source code, see our `code-upgrader` module for that.
 
 See also [Coming from Apostrophe 2.x](https://apostrophecms.com/docs/guide/migration/upgrading.html), especially the Breaking Changes section.
 
@@ -9,22 +9,6 @@ See also [Coming from Apostrophe 2.x](https://apostrophecms.com/docs/guide/migra
 * Users and groups are not migrated. This is because the user roles of A3/A4 differ in design from the permissions groups of A2 and we wish to avoid creating any security issues. You should create new accounts on the A4 project or arrive at your own migration strategy.
 * A2 has a built-in `apostrophe-images` "slideshow" widget type, while A4 only has a built-in single-image `@apostrophecms/image` widget type. By default `apostrophe-images` will be upgraded to `@apostrophecms/image`, with only the first image present in each. However you can use the `mapWidgetTypes` option, documented below, to override this mapping during the upgrade.
 * A4 does not have a standard "piece widget" with support for display of all widgets, handpicked widgets, or tagged widgets in the same way that A2 does. Instead, these are well-documented examples of custom widgets. You will need to use `mapWidgetTypes` accordingly after developing an appropriate solution for your needs in your A4 project.
-
-## Migrating your code
-
-In order to make practical use of this module, you'll need a matching A4 project with essentially the same features. To migrate your existing code, we recommend making a fresh checkout of your project with a branch name like `a4`. Also change `shortName`, adding `-a4` so that the database name will be distinct from your A2 project. Then choose one of the two paths below:
-
-### AI code migration tips
-
-Take advantage of the [Agent skill, aka Claude skill, we provide for this purpose](https://github.com/apostrophecms/content-upgrader/blob/main/skills/migrate-a2-to-a4/). For use with Claude Code, copy the `skills/migrate-a2-to-a4` folder of this repository to `.claude/skills/migrate-a2-to-a4` within your home directory, or your project. Then ask Claude Code to migrate the project to Apostrophe 4.x using the skill. Active developer involvement and testing is required, but you will save a tremendous amount of time by following this approach.
-
-Agent skills are also supported by other AI coding tools. Install the skill according to your preferred agent's instructions. Then make sure the agent is actually using the skill (it will tell you).
-
-**A good understanding of A4 and the migration process is still required.** Although Claude Code has done **most** of the work for two migrations for us so far, you will definitely need to prompt various corrections and changes. We strongly recommend reading all of the "manual code migration tips" below.
-
-### Manual code migration tips
-
-Of course manual upgrades are also supported. See [Coming from Apostrophe 2.x](https://apostrophecms.com/docs/guide/migration/upgrading.html) as well as the [recommendations in the agent skill,](https://github.com/apostrophecms/content-upgrader/blob/main/skills/migrate-a2-to-a4/SKILL.md) which are big time-savers for manual development as well.
 
 ## Installation
 
