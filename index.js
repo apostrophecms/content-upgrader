@@ -9,18 +9,18 @@ module.exports = {
     self.addUpgradeTask();
   },
   construct(self, options) {
-    self.a2ToA3Paths = new Map();
-    self.a2ToA3Ids = new Map();
+    self.a2ToA4Paths = new Map();
+    self.a2ToA4Ids = new Map();
     self.docTypesFound = new Set();
     self.widgetTypesFound = new Set();
     self.options.mapDocTypes = {
       'apostrophe-user': async (doc) => {
         // For now we do not import users. Determining their proper permissions
-        // equivalent in A3 is very subjective and they are easy to add back manually
+        // equivalent in A4 is very subjective and they are easy to add back manually
         return false;
       },
       'apostrophe-group': async (doc) => {
-        // For now A3 has no direct equivalent
+        // For now A4 has no direct equivalent
         return false;
       },
       'apostrophe-global': '@apostrophecms/global',
@@ -47,13 +47,13 @@ module.exports = {
       ...self.options.mapWidgetTypes
     };
     self.connectToNewDb = async () => {
-      const uri = self.apos.argv['a3-db'];
+      const uri = self.apos.argv['a4-db'] || self.apos.argv['a3-db'];
       if (!uri) {
-        fail('You must specify the --a3-db option, which must be a MongoDB URI for the new database');
+        fail('You must specify the --a4-db option, which must be a MongoDB URI for the new database');
       }
       const url = new URL(uri);
       if (self.apos.options.shortName === url.pathname.substring(1)) {
-        fail('For prevention of data loss, your a3 database name must not match the A2 project shortName.');
+        fail('For prevention of data loss, your a4 database name must not match the A2 project shortName.');
       }
       self.client = new MongoClient(uri, { useUnifiedTopology: true });
       await self.client.connect();
@@ -62,12 +62,12 @@ module.exports = {
       const count = await self.docs.countDocuments({});
       if (count) {
         if (!self.apos.argv.drop) {
-          fail('Your new A3 database already contains data.\nIf you are comfortable DELETING that data for a fresh upgrade attempt,\nrun again with: --drop');
+          fail('Your new A4 database already contains data.\nIf you are comfortable DELETING that data for a fresh upgrade attempt,\nrun again with: --drop');
         }
       }
     };
     self.addUpgradeTask = () => {
-      self.addTask('upgrade', 'Upgrade content for A3', self.upgradeTask);
+      self.addTask('upgrade', 'Upgrade content for A4', self.upgradeTask);
     };
     self.upgradeTask = async (apos, argv) => {
       await self.connectToNewDb();
@@ -75,6 +75,7 @@ module.exports = {
       await self.rewriteDocsJoinIdsPass();
       await self.removeSuperfluousDocs();
       await self.upgradeAttachments();
+      await self.fixLastPublishedAt();
       await self.report();
     };
     self.upgradeDocsPass = async () => {
@@ -134,6 +135,33 @@ module.exports = {
         await self.attachments.insertOne(attachment);
       });
     };
+    self.fixLastPublishedAt = async () => {
+      console.log('Fixing lastPublishedAt properties (may take a long time)...');
+      // A4/A4 is a stickler for this property
+      const aposLocales = await self.docs.distinct('aposLocale');
+      const locales = [...new Set(aposLocales.map(name => name.split(':')[0]))];
+      // TODO mongodb batch operation might be smootehr than Promise.all
+      for (const locale of locales) {
+        const docs = await self.docs.find({
+          aposLocale: `${locale}:published`
+        }).project({
+          updatedAt: 1,
+          createdAt: 1
+        }).toArray();
+        const promises = docs.map(doc => {
+          return self.docs.updateMany({
+            aposLocale: {
+              $in: [ `${locale}:draft`, `${locale}:published`, `${locale}.previous` ]
+            }
+          }, {
+            $set: {
+              lastPublishedAt: doc.updatedAt || doc.createdAt
+            }
+          });
+        });
+        await Promise.all(promises);
+      }
+    };
     self.upgradeDoc = async doc => {
       doc = await self.upgradeDocCore(doc);
       if (!doc) {
@@ -167,10 +195,10 @@ module.exports = {
         }
       }
       // upgradeDocCore sets this flag when the A2 site does not have workflow
-      // but the type will need draft/published support in A3
+      // but the type will need draft/published support in A4
       const replicateToPublished = doc._replicateToPublished;
       delete doc._replicateToPublished;
-      self.a2ToA3Ids.set(doc.a2Id, doc.aposDocId);
+      self.a2ToA4Ids.set(doc.a2Id, doc.aposDocId);
       await self.docs.insertOne(doc);
       self.docTypesFound.add(doc.type);
       self.markWidgetTypesFound(doc);
@@ -211,7 +239,7 @@ module.exports = {
         scopedArrayBase: `doc.${doc.type}`
       });
       // Spontaneous top level areas might not be accounted for yet
-      // (in A3 they must be added to the schema in the code)
+      // (in A4 they must be added to the schema in the code)
       for (const [ key, val ] of Object.entries(doc)) {
         if (val && (val.type === 'area')) {
           // Make sure we didn't process it already due to inclusion in the schema
@@ -248,7 +276,7 @@ module.exports = {
           doc.aposMode = mode;
         }
       } else {
-        // A3 always has draft/published at a minimum, we have to figure out what types
+        // A4 always has draft/published at a minimum, we have to figure out what types
         // would naturally be exempt without the workflow module to tell us
         const exempt = [ 'apostrophe-user', 'apostrophe-group', 'apostrophe-redirect' ];
         if (!exempt.includes(doc.type)) {
@@ -257,7 +285,8 @@ module.exports = {
           doc.aposDocId = doc._id.split(':')[0];
           doc.aposLocale = `${defaultLocale}:draft`;
           doc.aposMode = 'draft';
-          if (!doc.trash) {
+          // The trash page itself *does* get published, oddly enough, or A4 is mad
+          if (!(doc.trash && (doc.slug !== '/trash'))) {
             // We won't find a corresponding published doc in the db but we
             // need one, so drop a hint to insert one later
             doc._replicateToPublished = true;
@@ -317,11 +346,11 @@ module.exports = {
       const a2Path = doc.path;
       if (doc.path !== '/') {
         const a2ParentPath = a2Path.replace(/\/[^/]+$/, '') || '/';
-        doc.path = `${self.a2ToA3Paths.get(a2ParentPath)}/${doc.aposDocId}`;
+        doc.path = `${self.a2ToA4Paths.get(a2ParentPath)}/${doc.aposDocId}`;
       } else {
         doc.path = doc.aposDocId;
       }
-      self.a2ToA3Paths.set(a2Path, doc.path);
+      self.a2ToA4Paths.set(a2Path, doc.path);
       const workflow = self.apos.modules['apostrophe-workflow'];
       if (!workflow) {
         return doc;
@@ -436,7 +465,7 @@ module.exports = {
           object.content = (object.content || '').replace(/"#apostrophe-permalink-[^"?]*?\?/g, (match) => {
             const matches = match.match(/apostrophe-permalink-(.*)\?/);
             if (matches) {
-              const id = self.a2ToA3Ids.get(matches[1]);
+              const id = self.a2ToA4Ids.get(matches[1]);
               if (id) {
                 object.permalinkIds.push(id);
                 console.log(`rewrote permalink now points to ${id}`);
@@ -457,16 +486,16 @@ module.exports = {
             continue;
           }
           if (!Array.isArray(object)) {
-            if (self.a2ToA3Ids.has(key) && (self.a2ToA3Ids.get(key) !== key)) {
-              patchKeys[key] = self.a2ToA3Ids.get(key);
+            if (self.a2ToA4Ids.has(key) && (self.a2ToA4Ids.get(key) !== key)) {
+              patchKeys[key] = self.a2ToA4Ids.get(key);
             }
           }
           if (object[key]) {
             if ((object[key] != null) && ((typeof object[key]) === 'object')) {
               let passDebug = false;
               modified = rewrite(object[key], passDebug) || modified;
-            } else if (self.a2ToA3Ids.has(object[key]) && self.a2ToA3Ids.get(object[key]) !== object[key]) {
-              object[key] = self.a2ToA3Ids.get(object[key]);
+            } else if (self.a2ToA4Ids.has(object[key]) && self.a2ToA4Ids.get(object[key]) !== object[key]) {
+              object[key] = self.a2ToA4Ids.get(object[key]);
               modified = true;
             }
           }
@@ -481,7 +510,7 @@ module.exports = {
       }
     };
     // Recursively add any widget types found in object to the set of
-    // widget types known to be in the output. Expects an A3 object
+    // widget types known to be in the output. Expects an A4 object
     // (relies on metaType).
     self.markWidgetTypesFound = object => {
       if (object.metaType === 'widget') {

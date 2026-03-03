@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 (2026-03-02)
+
+- Updated misleading references to alpha status in README.
+- Updated legacy references to A3. You should migrate directly to A4.
+- Provided code migration AI agent skill. The `@apostrophecms/code-upgrader` module is no longer recommended.
+
 ## 1.0.0 (2023-03-16)
 
 - Declared stable. No code changes.
