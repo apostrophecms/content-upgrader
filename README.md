@@ -201,7 +201,7 @@ This tool may automatically copy the `public/uploadfs` folder in a future update
 
 ## Options
 
-### `--a3-db`
+### `--a4-db`
 
 **Required.** This must be the MongoDB URI of your new A3/A4 project. It will be **cleared and overwritten**. Currently there is no support for merging upgrade content with an existing A4 database.
 
