@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.1 (2026-03-19)
+
+- Documented the need to update the A2 project and ensure `parkedId` is consistently set on parked pages.
+
 ## 1.1.0 (2026-03-02)
 
 - Updated misleading references to alpha status in README.

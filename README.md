@@ -10,6 +10,16 @@ See also [Coming from Apostrophe 2.x](https://apostrophecms.com/docs/guide/migra
 * A2 has a built-in `apostrophe-images` "slideshow" widget type, while A4 only has a built-in single-image `@apostrophecms/image` widget type. By default `apostrophe-images` will be upgraded to `@apostrophecms/image`, with only the first image present in each. However you can use the `mapWidgetTypes` option, documented below, to override this mapping during the upgrade.
 * A4 does not have a standard "piece widget" with support for display of all widgets, handpicked widgets, or tagged widgets in the same way that A2 does. Instead, these are well-documented examples of custom widgets. You will need to use `mapWidgetTypes` accordingly after developing an appropriate solution for your needs in your A4 project.
 
+## BEFORE you use this module
+
+Make sure you take the following steps in your A2 project:
+
+* Be sure to set `parkedId` for any parked pages that do not yet have a `parkedId` in their configuration.
+* Then update your apostrophecms modules, especially `apostrophe` which must be updated to the latest in the 2.x series.
+* Then run `node app apostrophe-migrations:migrate` to make sure your database is fully up to date.
+
+If you do not take care of these steps, you may get difficult-to-fix errors when following the steps below.
+
 ## Installation
 
 This tool installs as a module **inside your existing A2 project.** This is necessary to gain access to information such as the schemas of your existing piece and page and widget types.
@@ -212,3 +222,7 @@ This tool may automatically copy the `public/uploadfs` folder in a future update
 ## Next steps
 
 After the content migration, you'll be ready to test out your A4 project. Existing local accounts should work properly at this point. The extent to which page and piece templates and settings work will depend on how complete your code upgrade work is.
+
+## If you get errors
+
+If you encounter "duplicate key" errors, you probably don't have a `parkedId` property on every parked page. Manually locate your parked pages in your A2 MongoDB database and set the `parkedId` property appropriately for each. Then try the migration process again.
