@@ -217,7 +217,8 @@ This tool may automatically copy the `public/uploadfs` folder in a future update
 
 ### `--drop`
 
-**Optional.** If at least one Apostrophe doc exists in the new A4 database, the task will exit with an error message unless this option is passed.
+**Optional.** If at least one Apostrophe doc exists in the new A4 database, the task will exit with an error message unless this option is passed. If the option is passed, existing collections are dropped to start
+from scratch.
 
 ## Next steps
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2 (2026-04-01)
+
+- The `--drop` option now drops all existing collections in the `a4-db`, as it always promised to do. Previously
+all it did was bypass the check for existing documents, which doesn't make sense.
+
 ## 1.1.1 (2026-03-19)
 
 - Documented the need to update the A2 project and ensure `parkedId` is consistently set on parked pages.

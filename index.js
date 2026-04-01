@@ -64,6 +64,11 @@ module.exports = {
         if (!self.apos.argv.drop) {
           fail('Your new A4 database already contains data.\nIf you are comfortable DELETING that data for a fresh upgrade attempt,\nrun again with: --drop');
         }
+        const db = self.client.db();
+        const collections = await db.listCollections().toArray();
+        for (const collection of collections) {
+          await db.collection(collection.name).drop();
+        }
       }
     };
     self.addUpgradeTask = () => {
