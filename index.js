@@ -1,5 +1,11 @@
 const { findSourceMap } = require('module');
 const { MongoClient } = require('mongodb');
+const fsp = require('fs').promises;
+const path = require('path');
+
+// The A2 `type` (name option) of image pieces, mapped to `@apostrophecms/image`
+// in A4. Used by --related-images to find and skip/collect image docs.
+const A2_IMAGE_TYPE = 'apostrophe-image';
 
 module.exports = {
   mapLocales: {
@@ -61,22 +67,76 @@ module.exports = {
       self.attachments = self.client.db().collection('aposAttachments');
       const count = await self.docs.countDocuments({});
       if (count) {
-        if (!self.apos.argv.drop) {
-          fail('Your new A4 database already contains data.\nIf you are comfortable DELETING that data for a fresh upgrade attempt,\nrun again with: --drop');
-        }
-        const db = self.client.db();
-        const collections = await db.listCollections().toArray();
-        for (const collection of collections) {
-          await db.collection(collection.name).drop();
+        if (self.merge) {
+          // --merge (or --replace, which implies it): leave the existing
+          // content in place and add the upgraded content alongside it.
+        } else if (self.apos.argv.drop) {
+          const db = self.client.db();
+          const collections = await db.listCollections().toArray();
+          for (const collection of collections) {
+            await db.collection(collection.name).drop();
+          }
+        } else if (self.only) {
+          fail('Your new A4 database already contains data, but you are using --only,\nso adding to it may make sense. Add --merge to insert the selected types,\nor --replace to also overwrite existing docs of those types.');
+        } else {
+          fail('Your new A4 database already contains data.\nIf you are comfortable DELETING that data for a fresh upgrade attempt,\nrun again with: --drop.\nTo instead add to the existing content, use --merge (or --replace to\noverwrite docs with matching ids).');
         }
       }
     };
     self.addUpgradeTask = () => {
       self.addTask('upgrade', 'Upgrade content for A4', self.upgradeTask);
     };
+    self.parseOptions = (argv) => {
+      self.replace = !!argv.replace;
+      // --replace implies --merge: upserting into a database only makes sense
+      // when we are keeping the content that is already there
+      self.merge = !!argv.merge || self.replace;
+      if (self.merge && argv.drop) {
+        fail('The --drop option cannot be combined with --merge or --replace.\n--drop wipes the database; the others add to or overwrite existing content.');
+      }
+      if (argv.only === true) {
+        fail('The --only option requires a comma-separated list of A2 doc types,\ne.g. --only=apostrophe-image,article');
+      }
+      self.only = (typeof argv.only === 'string' && argv.only.trim().length)
+        ? argv.only.split(',').map(type => type.trim()).filter(type => type.length)
+        : null;
+      // Migrate only the image docs actually referenced by the other migrated
+      // content, instead of every image. Composes with --only.
+      self.relatedImages = !!argv['related-images'];
+      // Optionally copy the physical media (public/uploads/attachments) of the
+      // migrated attachments into the A4 project directory. Assumes local media.
+      self.copyMedia = !!argv['copy-media'];
+      self.a4Dir = (typeof argv['a4-dir'] === 'string' && argv['a4-dir'].trim().length)
+        ? argv['a4-dir'].trim()
+        : null;
+      if (self.copyMedia && !self.a4Dir) {
+        fail('The --copy-media option requires --a4-dir=/path/to/your/a4/project.');
+      }
+    };
     self.upgradeTask = async (apos, argv) => {
+      self.parseOptions(argv);
+      if (self.only) {
+        console.log(`Migrating only these doc types (and their attachments):\n  ${self.only.join('\n  ')}\n`);
+      }
+      if (self.merge) {
+        console.log(self.replace
+          ? 'Merging into existing content; docs and attachments with matching ids will be replaced.\n'
+          : 'Merging into existing content; existing content is preserved.\n');
+      }
+      if (self.relatedImages) {
+        console.log('Migrating only the images referenced by the migrated content (--related-images).\n');
+      }
       await self.connectToNewDb();
+      if (self.relatedImages) {
+        await self.prepareRelatedImages();
+      }
       await self.upgradeDocsPass();
+      if (self.relatedImages) {
+        // Must run after the content is migrated (so we know which images it
+        // references) but before the id-rewrite pass (so those images are in
+        // a2ToA4Ids when references to them are rewritten).
+        await self.upgradeRelatedImages();
+      }
       await self.rewriteDocsJoinIdsPass();
       await self.removeSuperfluousDocs();
       await self.upgradeAttachments();
@@ -84,8 +144,22 @@ module.exports = {
       await self.report();
     };
     self.upgradeDocsPass = async () => {
-      await self.docs.deleteMany({});
-      const cursor = self.apos.docs.db.find({}).sort({
+      if (!self.merge) {
+        await self.docs.deleteMany({});
+      }
+      let criteria = {};
+      if (self.only) {
+        // With --related-images, images are handled by their own pass, so drop
+        // apostrophe-image from the list even if the user included it.
+        const types = self.relatedImages
+          ? self.only.filter(type => type !== A2_IMAGE_TYPE)
+          : self.only;
+        criteria = { type: { $in: types } };
+      } else if (self.relatedImages) {
+        // Migrate everything except images; referenced images are added after.
+        criteria = { type: { $ne: A2_IMAGE_TYPE } };
+      }
+      const cursor = self.apos.docs.db.find(criteria).sort({
         level: 1
       });
       while (true) {
@@ -124,6 +198,9 @@ module.exports = {
 
         const [ draft ] = await self.docs.find({ _id: doc._id.replace('published', 'draft') }).toArray();
 
+        if (!draft) {
+          continue;
+        }
         if (draft.archived && (draft.parkedId !== 'archive')) {
           // Remove the published version of draft documents that are archived,
           // except the root archive page which by convention exists in the
@@ -133,12 +210,196 @@ module.exports = {
       }
     };
     self.upgradeAttachments = async () => {
-      await self.attachments.deleteMany({});
+      if (!self.merge) {
+        await self.attachments.deleteMany({});
+      }
+      const keep = self.attachmentFilter();
+      const media = self.copyMedia ? await self.prepareMediaCopy() : null;
       await self.apos.migrations.each(self.apos.attachments.db, {}, 5, async attachment => {
+        if (keep && !keep(attachment)) {
+          return;
+        }
         attachment.archivedDocIds = attachment.trashDocIds;
         delete attachment.trashDocIds;
-        await self.attachments.insertOne(attachment);
+        if (self.replace) {
+          await self.attachments.replaceOne({ _id: attachment._id }, attachment, { upsert: true });
+        } else {
+          await self.attachments.insertOne(attachment);
+        }
+        if (media) {
+          await self.copyAttachmentMedia(attachment, media);
+        }
       });
+      if (media) {
+        self.reportMediaCopy(media);
+      }
+    };
+    // Validate --a4-dir, index the source attachments directory by attachment
+    // id, and ensure the destination directory exists. Returns the context used
+    // while copying, or exits with a helpful message if the media is not where
+    // --copy-media expects it (i.e. stored locally under public/uploads).
+    self.prepareMediaCopy = async () => {
+      const rootDir = self.apos.rootDir || process.cwd();
+      const sourceDir = path.join(rootDir, 'public', 'uploads', 'attachments');
+      const destDir = path.join(self.a4Dir, 'public', 'uploads', 'attachments');
+      let dirStat = null;
+      try {
+        dirStat = await fsp.stat(self.a4Dir);
+      } catch (e) {
+        // handled below
+      }
+      if (!dirStat || !dirStat.isDirectory()) {
+        fail(`--a4-dir "${self.a4Dir}" is not an existing directory.`);
+      }
+      if (path.resolve(sourceDir) === path.resolve(destDir)) {
+        fail('--a4-dir points at the A2 project itself; there is nothing to copy.\nSpecify your new A4 project directory instead.');
+      }
+      let entries;
+      try {
+        entries = await fsp.readdir(sourceDir);
+      } catch (e) {
+        fail(`Could not read the source media directory:\n  ${sourceDir}\n${e.message}\n--copy-media only supports media stored locally under public/uploads.`);
+      }
+      // Index every file by attachment id (the portion of the filename before
+      // the first hyphen; Apostrophe ids contain no hyphens). Each attachment's
+      // original plus its scaled and cropped variants share that id prefix, so
+      // this lets us copy them all without re-deriving uploadfs paths.
+      const byId = new Map();
+      for (const file of entries) {
+        const hyphen = file.indexOf('-');
+        if (hyphen < 0) {
+          continue;
+        }
+        const id = file.slice(0, hyphen);
+        let list = byId.get(id);
+        if (!list) {
+          list = [];
+          byId.set(id, list);
+        }
+        list.push(file);
+      }
+      await fsp.mkdir(destDir, { recursive: true });
+      console.log(`Copying media from ${sourceDir}\n  to ${destDir} ...`);
+      return {
+        sourceDir,
+        destDir,
+        byId,
+        filesCopied: 0,
+        bytesCopied: 0,
+        missing: [],
+        failed: []
+      };
+    };
+    // Copy one migrated attachment's files (original, scaled sizes and crops)
+    // from the A2 uploads directory to the A4 one.
+    self.copyAttachmentMedia = async (attachment, media) => {
+      const files = media.byId.get(attachment._id);
+      if (!files || !files.length) {
+        media.missing.push(attachment._id);
+        return;
+      }
+      for (const file of files) {
+        try {
+          const from = path.join(media.sourceDir, file);
+          const to = path.join(media.destDir, file);
+          const { size } = await fsp.stat(from);
+          await fsp.copyFile(from, to);
+          media.filesCopied++;
+          media.bytesCopied += size;
+        } catch (e) {
+          media.failed.push(e);
+        }
+      }
+    };
+    self.reportMediaCopy = (media) => {
+      const mb = (media.bytesCopied / (1024 * 1024)).toFixed(1);
+      console.log(`\nCopied ${media.filesCopied} media file(s) (${mb} MB) into ${media.destDir}.`);
+      if (media.missing.length) {
+        console.log(`⚠️  ${media.missing.length} migrated attachment(s) had no files in the source directory.\nIf your A2 media is stored remotely (e.g. S3), copy it by your own means;\n--copy-media only handles media stored locally under public/uploads.`);
+      }
+      if (media.failed.length) {
+        console.log(`⚠️  ${media.failed.length} file(s) could not be copied. First error: ${media.failed[0].message}`);
+      }
+    };
+    // Returns a predicate deciding which attachments to migrate, or null to
+    // migrate all of them. An attachment's docIds/trashDocIds hold the original
+    // A2 _ids of the docs that reference it.
+    self.attachmentFilter = () => {
+      if (self.only) {
+        // Only attachments referenced by a doc we actually migrated. The keys
+        // of a2ToA4Ids are exactly those docs' A2 _ids (referenced images, if
+        // any, are in there too).
+        const migrated = new Set(self.a2ToA4Ids.keys());
+        return attachment => attachmentRefs(attachment).some(id => migrated.has(id));
+      }
+      if (self.relatedImages) {
+        // Full migration minus unreferenced images: drop an attachment only
+        // when every doc referencing it is an image we chose not to migrate.
+        const skipped = new Set(
+          [ ...self.imageA2Ids ].filter(id => !self.relatedImageA2Ids.has(id))
+        );
+        return attachment => {
+          const refs = attachmentRefs(attachment);
+          return refs.length ? refs.some(id => !skipped.has(id)) : true;
+        };
+      }
+      return null;
+    };
+    // Build the set of all A2 image doc ids (and, under workflow, a map from
+    // each to its workflowGuid) up front, and prepare the accumulator for the
+    // ids actually referenced by migrated content.
+    self.prepareRelatedImages = async () => {
+      self.imageA2Ids = new Set();
+      self.relatedImageA2Ids = new Set();
+      self.imageGuidById = new Map();
+      const workflow = self.apos.modules['apostrophe-workflow'];
+      const cursor = self.apos.docs.db.find({ type: A2_IMAGE_TYPE }).project({
+        _id: 1,
+        workflowGuid: 1
+      });
+      while (true) {
+        const doc = await cursor.next();
+        if (!doc) {
+          break;
+        }
+        self.imageA2Ids.add(doc._id);
+        if (workflow && doc.workflowGuid) {
+          self.imageGuidById.set(doc._id, doc.workflowGuid);
+        }
+      }
+    };
+    // Migrate the image docs referenced by content migrated in upgradeDocsPass.
+    self.upgradeRelatedImages = async () => {
+      if (!self.relatedImageA2Ids.size) {
+        console.log('No images are referenced by the migrated content.\n');
+        return;
+      }
+      const or = [ { _id: { $in: [ ...self.relatedImageA2Ids ] } } ];
+      // Under workflow an image exists as several docs (draft/live, per locale)
+      // sharing a workflowGuid. Bring them all, so A4 gets complete
+      // draft/published pairs rather than only the single id referenced.
+      const guids = [ ...new Set(
+        [ ...self.relatedImageA2Ids ]
+          .map(id => self.imageGuidById.get(id))
+          .filter(Boolean)
+      ) ];
+      if (guids.length) {
+        or.push({ workflowGuid: { $in: guids } });
+      }
+      const cursor = self.apos.docs.db.find({
+        type: A2_IMAGE_TYPE,
+        $or: or
+      });
+      let count = 0;
+      while (true) {
+        const doc = await cursor.next();
+        if (!doc) {
+          break;
+        }
+        await self.upgradeDoc(doc);
+        count++;
+      }
+      console.log(`Migrated ${count} referenced image doc(s), out of ${self.imageA2Ids.size} in the source.\n`);
     };
     self.fixLastPublishedAt = async () => {
       console.log('Fixing lastPublishedAt properties (may take a long time)...');
@@ -167,7 +428,15 @@ module.exports = {
         await Promise.all(promises);
       }
     };
+    self.insertOrReplaceDoc = async doc => {
+      if (self.replace) {
+        await self.docs.replaceOne({ _id: doc._id }, doc, { upsert: true });
+      } else {
+        await self.docs.insertOne(doc);
+      }
+    };
     self.upgradeDoc = async doc => {
+      const sourceType = doc.type;
       doc = await self.upgradeDocCore(doc);
       if (!doc) {
         return;
@@ -203,12 +472,17 @@ module.exports = {
       // but the type will need draft/published support in A4
       const replicateToPublished = doc._replicateToPublished;
       delete doc._replicateToPublished;
+      // Note which images this (non-image) doc references, so --related-images
+      // can migrate just those. Done here, on the fully transformed A4 doc.
+      if (self.relatedImages && (sourceType !== A2_IMAGE_TYPE)) {
+        self.collectReferencedImageIds(doc, self.imageA2Ids, self.relatedImageA2Ids);
+      }
       self.a2ToA4Ids.set(doc.a2Id, doc.aposDocId);
-      await self.docs.insertOne(doc);
+      await self.insertOrReplaceDoc(doc);
       self.docTypesFound.add(doc.type);
       self.markWidgetTypesFound(doc);
       if (replicateToPublished) {
-        await self.docs.insertOne({
+        await self.insertOrReplaceDoc({
           ...doc,
           _id: doc._id.replace(':draft', ':published'),
           aposLocale: doc.aposLocale.replace(':draft', ':published'),
@@ -527,6 +801,50 @@ module.exports = {
         }
       }
     };
+    // Record, into `found`, every id in `candidateIds` (all A2 image ids) that
+    // the migrated (A4-form) object references. Mirrors the id positions the
+    // rewrite() traversal in rewriteDocJoinIds handles — scalar id fields, the
+    // keys of id-keyed relationship maps, and rich text permalinks — with two
+    // deliberate exceptions that keep --related-images to "images A4 actually
+    // uses": an @apostrophecms/image widget counts only its imageIds (the
+    // leftover apostrophe-images pieceIds/relationships are ignored), and rich
+    // text counts only permalink targets. Keep in sync with rewrite() if the
+    // set of id positions there changes.
+    self.collectReferencedImageIds = (object, candidateIds, found) => {
+      if (object.type === '@apostrophecms/rich-text') {
+        const content = object.content || '';
+        const regexp = /apostrophe-permalink-([^"?]+)\?/g;
+        let match;
+        while ((match = regexp.exec(content))) {
+          if (candidateIds.has(match[1])) {
+            found.add(match[1]);
+          }
+        }
+        return;
+      }
+      if (object.type === '@apostrophecms/image') {
+        for (const id of (object.imageIds || [])) {
+          if (candidateIds.has(id)) {
+            found.add(id);
+          }
+        }
+        return;
+      }
+      for (const key of Object.keys(object)) {
+        if (key === 'a2Id') {
+          continue;
+        }
+        if (!Array.isArray(object) && candidateIds.has(key)) {
+          found.add(key);
+        }
+        const value = object[key];
+        if (value && ((typeof value) === 'object')) {
+          self.collectReferencedImageIds(value, candidateIds, found);
+        } else if (((typeof value) === 'string') && candidateIds.has(value)) {
+          found.add(value);
+        }
+      }
+    };
     self.report = () => {
       console.log('\nComplete!\n');
       if (self.localesFound) {
@@ -547,6 +865,12 @@ module.exports = {
 function fail(message) {
   console.error(`\n\n🛑 ${message}\n`);
   process.exit(1);
+}
+
+// The A2 _ids of every doc that references an attachment, whether live or in
+// the trash.
+function attachmentRefs(attachment) {
+  return [ ...(attachment.docIds || []), ...(attachment.trashDocIds || []) ];
 }
 
 // Log the value and return it. This is handy in
