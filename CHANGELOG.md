@@ -1,5 +1,13 @@
 # Changelog
 
+## UNRELEASED
+
+- Added the `--only=type1,type2,...` option to migrate only certain A2 doc types and the attachments they reference. Include `apostrophe-image` (and/or `apostrophe-file`) in the list if you want the corresponding media to come across.
+- Added the `--related-images` option to migrate only the images actually referenced by the migrated content (one hop, resolved against the A4-form content), rather than every image. Works on its own or together with `--only`.
+- Added the `--merge` option to add the upgraded content to an existing A4 database instead of insisting on `--drop`. Existing content is preserved and new content is inserted alongside it.
+- Added the `--replace` option, which upserts documents and attachments (overwriting any with matching ids) rather than inserting them, so re-running an upgrade does not fail with duplicate key errors. `--replace` implies `--merge`.
+- Added the `--copy-media` option (which requires `--a4-dir`) to copy the physical media files of the migrated attachments into the A4 project, respecting `--only` and `--related-images`. Assumes media is stored locally under `public/uploads/attachments`; it does not use uploadfs and so does not handle remote (e.g. S3) storage.
+
 ## 1.1.2 (2026-04-01)
 
 - The `--drop` option now drops all existing collections in the `a4-db`, as it always promised to do. Previously

@@ -205,20 +205,71 @@ node app @apostrophecms/content-upgrader:upgrade --a3-db=mongodb://localhost:270
 
 The media files themselves don't need to change in the transition to A4.
 
-So you can manually copy the `public/uploads` folder from the A2 project to the A4 project, or use `rsync`. If you are using uploadfs to store your media in S3 your procedure will vary.
+You can copy the `public/uploads` folder from the A2 project to the A4 project manually, or use `rsync`. If you are using uploadfs to store your media in S3 your procedure will vary.
 
-This tool may automatically copy the `public/uploadfs` folder in a future update.
+Alternatively, pass `--copy-media` (together with `--a4-dir`) and this tool will copy the media for the migrated attachments for you. This is especially convenient with `--only` and `--related-images`, because only the media for the attachments actually migrated is copied. See the options below.
 
 ## Options
 
 ### `--a4-db`
 
-**Required.** This must be the MongoDB URI of your new A3/A4 project. It will be **cleared and overwritten**. Currently there is no support for merging upgrade content with an existing A4 database.
+**Required.** This must be the MongoDB URI of your new A3/A4 project. By default it will be **cleared and overwritten**. See `--merge` and `--replace` below if you want to add to an existing A4 database instead.
 
 ### `--drop`
 
 **Optional.** If at least one Apostrophe doc exists in the new A4 database, the task will exit with an error message unless this option is passed. If the option is passed, existing collections are dropped to start
-from scratch.
+from scratch. Cannot be combined with `--merge` or `--replace`.
+
+### `--only=type1,type2,...`
+
+**Optional.** Migrate **only** the specified doc types, and only the attachments referenced by those docs. The values are the **A2** `type` names (the same names you would use as keys in `mapDocTypes`), separated by commas.
+
+This is useful for re-migrating a single piece type into an existing A4 database without redoing everything. Combine it with `--merge` or `--replace`, since the target database will already contain data.
+
+🎩 **Attachments (images, files, etc.) are only migrated if a migrated doc references them.** For example, if you want your images to come across, include `apostrophe-image` in the list: `--only=apostrophe-image,article`. The tool does not try to guess which other types your selected types depend on. (See `--related-images` below for a way to bring across just the images your content actually uses.)
+
+Note that relationships/joins pointing to doc types you did **not** include cannot be rewritten to their new ids, because those docs are not part of this migration.
+
+### `--related-images`
+
+**Optional.** Instead of migrating every `apostrophe-image` piece, migrate **only the images actually referenced by the other content being migrated**, along with their attachments. This is handy when your media library contains far more images than your live content uses.
+
+It works on its own — `--related-images` performs a normal full migration but leaves out images nothing refers to — and it composes with `--only`:
+
+* `--only=article,apostrophe-image` migrates every article **and every image**.
+* `--only=article --related-images` migrates every article and **only the images those articles reference** (you do not include `apostrophe-image` yourself; it is handled for you).
+
+Only images **directly** referenced by a migrated doc are included (one hop). If an article references some other piece that in turn references an image, and that piece is not itself migrated, its image will not be pulled in. References are resolved against the migrated, A4-form content, so for a legacy `apostrophe-images` slideshow that is reduced to a single-image `@apostrophecms/image` widget, only that one surviving image is considered "referenced".
+
+### `--merge`
+
+**Optional.** Add the upgraded content to the existing A4 database instead of insisting on `--drop`. Existing documents and attachments are left untouched, and the newly upgraded content is inserted alongside them.
+
+If a document or attachment being inserted has the same `_id` as one that already exists, MongoDB will report a duplicate key error. Use `--replace` instead if you want matching documents to be overwritten.
+
+### `--replace`
+
+**Optional.** Like `--merge`, but instead of inserting documents and attachments, it **upserts** them: any existing document or attachment with a matching `_id` is overwritten, and there is no duplicate key error. `--replace` implies `--merge`, so you do not need to pass both.
+
+This is the option to use when re-running an upgrade for a subset of your content, for example `--only=apostrophe-image,article --replace`.
+
+### `--a4-dir=/path/to/a4/project`
+
+**Optional.** The root directory of your new A4 project. Only used by `--copy-media`, to locate the destination `public/uploads/attachments` folder.
+
+### `--copy-media`
+
+**Optional.** Physically copy the media files for the migrated attachments from this A2 project to the A4 project. **Requires `--a4-dir`.**
+
+Only the files for the attachments actually migrated are copied, so this respects `--only` and `--related-images` — a targeted upgrade copies only the media it needs.
+
+🎩 **This option assumes your media is stored locally**, under `public/uploads/attachments`, in both projects. It copies files directly and does **not** go through uploadfs, so it is not suitable for media stored remotely (for example in S3); copy that by your own means. Any migrated attachment whose files are not found locally is reported at the end.
+
+```
+node app @apostrophecms/content-upgrader:upgrade \
+  --a4-db=mongodb://localhost:27017/your-new-database-name \
+  --a4-dir=/path/to/your/a4/project --copy-media
+```
 
 ## Next steps
 
