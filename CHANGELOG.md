@@ -1,6 +1,6 @@
 # Changelog
 
-## UNRELEASED
+## 1.2.0 (2026-07-10)
 
 - Added the `--only=type1,type2,...` option to migrate only certain A2 doc types and the attachments they reference. Include `apostrophe-image` (and/or `apostrophe-file`) in the list if you want the corresponding media to come across.
 - Added the `--related-images` option to migrate only the images actually referenced by the migrated content (one hop, resolved against the A4-form content), rather than every image. Works on its own or together with `--only`.
