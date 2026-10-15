@@ -1,5 +1,9 @@
 # Changelog
 
+## UNRELEASED
+
+- Array items now also receive `arrayFieldId`, the path-based `_id` of their field in Apostrophe 4, which lets Apostrophe tell apart a nested array that shares the name of its parent. `scopedArrayName` is still written for compatibility with older releases of Apostrophe 4.
+
 ## 1.2.0 (2026-07-10)
 
 - Added the `--only=type1,type2,...` option to migrate only certain A2 doc types and the attachments they reference. Include `apostrophe-image` (and/or `apostrophe-file`) in the list if you want the corresponding media to come across.

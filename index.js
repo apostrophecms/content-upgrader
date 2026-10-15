@@ -688,10 +688,19 @@ module.exports = {
       },
       async array(doc, field, options) {
         const newArray = [];
+        // The _id of the field in Apostrophe 4: its path from the doc or
+        // widget type through any enclosing array fields. Unlike the flat
+        // scopedArrayName it is unique when a nested array shares the name of
+        // its parent
+        const fieldPath = `${options.fieldPath || options.scopedArrayBase}.${field.name}`;
         for (const object of (doc[field.name] || [])) {
           newArray.push({
-            ...await self.upgradeObject(field.schema, object, options),
+            ...await self.upgradeObject(field.schema, object, {
+              ...options,
+              fieldPath
+            }),
             metaType: 'arrayItem',
+            arrayFieldId: fieldPath,
             scopedArrayName: `${options.scopedArrayBase}.${field.name}`
           });
         }
